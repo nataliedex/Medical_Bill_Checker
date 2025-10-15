@@ -1,0 +1,1 @@
+This application will compare your medical expenses to a referenced price and display any discrepencies and estimate a fair cost
