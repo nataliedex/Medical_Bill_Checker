@@ -1,0 +1,95 @@
+<%- include('partials/header') -%>
+
+<div class="container my-4">
+    <h1><%= title %></h1>
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+          <h3 class="card-title mb-3">Search CPT Codes</h3>
+          <form id="input-cpt-code" action="/search" method="get" class="mb-0">
+            <div class="mb-3">
+              <label for="code" class="form-label">Enter CPT Code(s): </label>
+              <input type="text" class="form-control" name="code" id="code" placeholder="e.g. 99213, 99285, 99281">
+            </div>
+      
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="nonMedicareToggle">
+              <label class="form-check-label" for="nonMedicareToggle">Show Non-Medicare Only</label>
+            </div>
+      
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Search</button>
+              <button type="button" id="exportBtn" class="btn btn-success">Export</button>
+              <a href="/" class="btn btn-secondary">New Search</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    <!-- pivot table -->
+    <% if (results && results.length > 0) { %>
+        <div class="card mb-4 shadow-sm">
+          <div class="card-body">
+            <div>
+                <h4>Summary Table for: </h4>
+                <p><%= [...new Set(results.map(item => item.cpt_code))].join(", ") %></p>
+            </div>
+            <div class="table-responsive mt-3">
+              <table id="pivot-table" class="table table-bordered table-striped table-hover">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th>CPT Code</th>
+                    <th>Median Standard Charge</th>
+                    <th>Median Negotiated Charge</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <% } %>
+    <!-- raw data -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+          <h4>Search Results</h4>
+          <div class="table-responsive mt-3" style="max-height: 600px; overflow-y:auto;">
+            <table id="resultsTable" class="table table-striped table-hover align-middle">
+              <thead class="table-dark sticky-top">
+                <tr>
+                  <th scope="col" style="cursor:pointer;" onclick="sortTable(0)">Code <i class="bi bi-arrow-down-up"></i></th>
+                  <th scope="col" style="cursor:pointer;" onclick="sortTable(1)">Description <i class="bi bi-arrow-down-up"></i></th>
+                  <th scope="col" style="cursor:pointer;" onclick="sortTable(2)">Standard Charge <i class="bi bi-arrow-down-up"></i></th>
+                  <th scope="col" style="cursor:pointer;" onclick="sortTable(3)">Negotiated Charge <i class="bi bi-arrow-down-up"></i></th>
+                  <th scope="col" style="cursor:pointer;" onclick="sortTable(4)">Payer Name <i class="bi bi-arrow-down-up"></i></th>
+                  <th scope="col" style="cursor:pointer;" onclick="sortTable(5)">Plan Type <i class="bi bi-arrow-down-up"></i></th>
+                </tr>
+              </thead>
+              <tbody id="results-table">
+                <% results.forEach(item => { %>
+                <tr>
+                  <td><%= item.cpt_code %></td>
+                  <td><%= item.description %></td>
+                  <td>$<%= item.standard_charge %></td>
+                  <td>$<%= item.negotiated_charge %></td>
+                  <td><%= item.payer %></td>
+                  <td><%= item.plan_name %></td>
+                </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+</div>
+
+
+
+
+
+<% if (results && results.length > 0) { %>
+    <script>
+        // Pass server-side results to client-side JS
+        window.pivotData = <%- JSON.stringify(results) %>;
+    </script>
+    <% } %>
+<%- include('partials/footer') -%>

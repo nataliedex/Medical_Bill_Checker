@@ -1,0 +1,20 @@
+body {
+    background-color: #f8f9fa; /* subtle light gray */
+}
+
+h1, h3, h4 {
+    color: #343a40; /* dark gray headers */
+}
+
+.card {
+    border-radius: 0.75rem;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #e9ecef;
+}
+
+#pivot-table tbody tr.table-secondary {
+    font-weight: bold;
+    background-color: #f1f3f5;
+}
