@@ -32,8 +32,10 @@
 
         <div class="d-flex gap-2">
           <button type="submit" class="btn btn-primary">Search</button>
-          <button type="button" id="exportBtn" class="btn btn-success">Export</button>
-          <a href="/" class="btn btn-secondary">New Search</a>
+          <% if(results && results.length > 0) { %>
+            <button type="button" id="exportBtn" class="btn btn-success">Export</button>
+            <a href="/" class="btn btn-secondary">New Search</a>
+          <% } %>
         </div>
       </form>
     </div>
