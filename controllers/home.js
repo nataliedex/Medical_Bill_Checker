@@ -32,6 +32,7 @@ module.exports = {
         const results = await collection
           .find(query)
           .sort({ cpt_code: 1, negotiated_charge: 1 })
+          .allowDiskUse(true)
           .toArray();
     
         res.render("index.ejs", { results, title: `Medical Bill Checker`, hospital, codes: req.query.code || ""  });
