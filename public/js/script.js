@@ -138,7 +138,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // IMPORTANT: do not coerce to 0 here; let median drop bad values
       const standardMedian = median(group.map(x => parseFloat(x.standard_charge)));
-      const negotiatedMedian = median(group.map(x => parseFloat(x.negotiated_charge)));
+
+      const negotiatedValues = group.map(x => {
+        const negotiated = parseFloat(x.negotiated_charge);
+        const standard = parseFloat(x.standard_charge);
+        
+        if (!isNaN(negotiated) && negotiated > 0) {
+          return negotiated;
+        } else if (!isNaN(standard) && standard > 0) {
+          return standard * 0.9; // 10% off fallback
+        } else {
+          return 0;
+        }
+      });
+
+      const negotiatedMedian = median(negotiatedValues);
 
       totalStandard += standardMedian;
       totalNegotiated += negotiatedMedian;

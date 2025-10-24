@@ -23,10 +23,7 @@
               <input type="text" class="form-control" name="code" id="code" placeholder="e.g. 99213, 99285, 99281">
             </div>
       
-            <div class="form-check form-switch mb-3">
-              <input class="form-check-input" type="checkbox" id="nonMedicareToggle">
-              <label class="form-check-label" for="nonMedicareToggle">Show Non-Medicare Only</label>
-            </div>
+            
       
             <div class="d-flex gap-2">
               <button type="submit" class="btn btn-primary">Search</button>
@@ -51,6 +48,10 @@
                 <option value="<%= s %>"><%= s %></option>
               <% }) %>
             </select>
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="nonMedicareToggle">
+              <label class="form-check-label" for="nonMedicareToggle">Show Non-Medicare Only</label>
+            </div>
           </div>
           <div>
             <h4>Summary Table for: </h4>
@@ -96,8 +97,24 @@
                   <td><%= item.cpt_code %></td>
                   <td><%= item.description %></td>
                   <td><%= item.setting %></td>
-                  <td>$<%= item.standard_charge %></td>
-                  <td>$<%= item.negotiated_charge %></td>
+                  <td>$<%= Number(item.standard_charge || 0).toFixed(0) %></td>
+                  <td>
+                    $<% 
+                      const negotiated = Number(item.negotiated_charge || 0);
+                      const cash = Number(item.standard_cash_charge || 0);
+                      const standard = Number(item.standard_charge || 0);
+
+                      let price;
+                      if(negotiated > 0){
+                        price = negotiated;
+                      } else if(cash > 0){
+                        price = cash;
+                      } else {
+                        price = standard * .9;
+                      }
+                    %>
+                    <%= price.toFixed(0) %>
+                  </td>
                   <td><%= item.payer %></td>
                   <td><%= item.plan_name %></td>
                 </tr>
