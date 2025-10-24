@@ -3,7 +3,7 @@ const { connectDB } = require("../config/database");
 module.exports = {
     getIndex: async(req, res) => {
         try {
-            res.render("index.ejs", { results: [], title: "Medical Bill Checker" });
+            res.render("index.ejs", { results: [], title: "Medical Bill Checker", hospital: "", codes: "" });
         } catch(err) {
             res.status(500).send("can not render the index.ejs file");
         }
@@ -34,7 +34,7 @@ module.exports = {
           .sort({ cpt_code: 1, negotiated_charge: 1 })
           .toArray();
     
-        res.render("index.ejs", { results, title: `Medical Bill Checker` });
+        res.render("index.ejs", { results, title: `Medical Bill Checker`, hospital, codes: req.query.code || ""  });
       } catch (err) {
         console.error("Error fetching procedures: ", err);
         res.status(500).send("Server error while searching procedures.");
