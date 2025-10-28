@@ -3,6 +3,7 @@ const path = require("path");
 const dotenv = require("dotenv");
 const { connectDB } = require("./config/database");
 const mainRoutes = require("./routes/main");
+const openaiRoute = require("./routes/openai");
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.set("views", path.join(__dirname, "views"));
 
 // Routes
 app.use("/", mainRoutes);
+app.use("/api", openaiRoute);
 
 //Server Running and connect to MongoDB
 connectDB()
