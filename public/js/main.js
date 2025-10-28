@@ -16,11 +16,26 @@ async function getCPTDescription(code) {
 
 async function getMultipleCPTDescriptions(codes) {
   const descriptions = {};
-  // Fetch all codes concurrently
   await Promise.all(codes.map(async (code) => {
     descriptions[code] = await getCPTDescription(code);
   }));
   return descriptions;
+}
+
+// --- Fetch short visit summary ---
+async function getVisitSummary(codes) {
+  try {
+    const res = await fetch("/api/summarize-visit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codes }),
+    });
+    const data = await res.json();
+    return data.summary || "No summary available.";
+  } catch (err) {
+    console.error("Error fetching visit summary:", err);
+    return "Error fetching summary.";
+  }
 }
 
 // --- Table sorting ---
@@ -67,16 +82,18 @@ async function renderPivotTable(data) {
   const uniqueCPTs = [...new Set(data.map(item => item.cpt_code))];
   const descriptions = await getMultipleCPTDescriptions(uniqueCPTs);
 
-  function buildTable(filterSetting = "") {
+  async function buildTable(filterSetting = "") {
     pivotBody.innerHTML = "";
-
     const grouped = {};
+    const displayedCodes = new Set();
+
     data.forEach(item => {
       const setting = item.setting || "unknown";
       if (filterSetting && setting !== filterSetting) return;
       const key = `${item.cpt_code}||${setting}`;
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(item);
+      displayedCodes.add(item.cpt_code);
     });
 
     Object.keys(grouped).sort().forEach(key => {
@@ -102,13 +119,25 @@ async function renderPivotTable(data) {
       `;
       pivotBody.appendChild(tr);
     });
+
+    // Append short visit summary at bottom
+    if (displayedCodes.size > 0) {
+      const summary = await getVisitSummary(Array.from(displayedCodes));
+      const summaryTr = document.createElement("tr");
+      summaryTr.innerHTML = `
+        <td colspan="5" style="font-style: italic; background-color: #f8f9fa;">
+          Visit Summary: ${summary}
+        </td>
+      `;
+      pivotBody.appendChild(summaryTr);
+    }
   }
 
-  buildTable();
+  await buildTable();
 
   if (settingFilter) {
-    settingFilter.addEventListener("change", () => {
-      buildTable(settingFilter.value);
+    settingFilter.addEventListener("change", async () => {
+      await buildTable(settingFilter.value);
     });
   }
 }

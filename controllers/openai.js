@@ -29,7 +29,7 @@ module.exports = {
             },
             {
               role: "user",
-              content: `Explain CPT code ${code} in 1–2 short sentences.`
+              content: `Provide a plain-language description of the procedure for CPT code ${code} in 1–2 short sentences. Do not include the CPT code or the word CPT in the description.`
             }
           ]
         });
@@ -45,6 +45,30 @@ module.exports = {
     } catch (err) {
       console.error("Error in /api/describe-cpt:", err);
       res.status(500).json({ error: "Server error" });
+    }
+  },
+
+  postVisitSummary: async (req, res) => {
+    try {
+      const { codes } = req.body;
+      if (!codes || !codes.length) return res.status(400).json({ summary: "No CPT codes provided." });
+
+      const prompt = `Summarize a patient visit for these CPT codes in 6-10 sentences, in plain language: ${codes.join(", ")}`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are a medical billing assistant." },
+          { role: "user", content: prompt },
+        ],
+      });
+
+      const summary = completion.choices[0].message.content;
+      res.json({ summary });
+
+    } catch (err) {
+      console.error("Error in /api/summarize-visit:", err);
+      res.status(500).json({ summary: "Error fetching summary." });
     }
   }
 };
