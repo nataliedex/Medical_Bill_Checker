@@ -1,3 +1,20 @@
+// --- Median helper (ignore zeros) ---
+function median(values) {
+  const cleaned = values
+    .filter(v => v != null && !isNaN(v))
+    .map(Number)
+    .filter(v => v > 0);
+
+  if (!cleaned.length) return 0;
+
+  cleaned.sort((a, b) => a - b);
+  const mid = Math.floor(cleaned.length / 2);
+
+  return cleaned.length % 2 !== 0
+    ? cleaned[mid]
+    : (cleaned[mid - 1] + cleaned[mid]) / 2;
+}
+
 // --- Fetch CPT descriptions ---
 async function getCPTDescription(code) {
   try {
@@ -16,9 +33,11 @@ async function getCPTDescription(code) {
 
 async function getMultipleCPTDescriptions(codes) {
   const descriptions = {};
-  await Promise.all(codes.map(async (code) => {
-    descriptions[code] = await getCPTDescription(code);
-  }));
+  await Promise.all(
+    codes.map(async (code) => {
+      descriptions[code] = await getCPTDescription(code);
+    })
+  );
   return descriptions;
 }
 
@@ -55,31 +74,23 @@ function sortTable(n, tableId = "resultsTable") {
     const numB = parseFloat(valB);
 
     if (!isNaN(numA) && !isNaN(numB)) return (numA - numB) * direction;
-    else return a.cells[n].innerText.localeCompare(b.cells[n].innerText) * direction;
+    return a.cells[n].innerText.localeCompare(b.cells[n].innerText) * direction;
   });
 
-  rows.forEach(row => tbody.appendChild(row));
+  rows.forEach((row) => tbody.appendChild(row));
 
-  table.querySelectorAll("th i").forEach(i => i.className = "bi bi-arrow-down-up");
+  table.querySelectorAll("th i").forEach((i) => (i.className = "bi bi-arrow-down-up"));
   table.querySelectorAll("th i")[n].className = sortDirections[n] ? "bi bi-arrow-down" : "bi bi-arrow-up";
 }
 
-// --- Median helper ---
-function median(values) {
-  const cleaned = values.filter(v => v != null && !isNaN(v)).map(Number).filter(v => v > 0);
-  if (!cleaned.length) return 0;
-  cleaned.sort((a, b) => a - b);
-  const mid = Math.floor(cleaned.length / 2);
-  return cleaned.length % 2 !== 0 ? cleaned[mid] : (cleaned[mid - 1] + cleaned[mid]) / 2;
-}
-
-// --- Pivot table rendering ---
+// --- Pivot table rendering for Manual Upload ---
 async function renderPivotTable(data) {
+  console.log("we are using the render pivot table function!");
   const pivotBody = document.querySelector("#pivot-table tbody");
   const settingFilter = document.querySelector("#setting-filter");
   if (!pivotBody) return;
 
-  const uniqueCPTs = [...new Set(data.map(item => item.cpt_code))];
+  const uniqueCPTs = [...new Set(data.map((item) => item.cpt_code))];
   const descriptions = await getMultipleCPTDescriptions(uniqueCPTs);
 
   async function buildTable(filterSetting = "") {
@@ -87,7 +98,7 @@ async function renderPivotTable(data) {
     const grouped = {};
     const displayedCodes = new Set();
 
-    data.forEach(item => {
+    data.forEach((item) => {
       const setting = item.setting || "unknown";
       if (filterSetting && setting !== filterSetting) return;
       const key = `${item.cpt_code}||${setting}`;
@@ -96,31 +107,52 @@ async function renderPivotTable(data) {
       displayedCodes.add(item.cpt_code);
     });
 
-    Object.keys(grouped).sort().forEach(key => {
-      const items = grouped[key];
-      const [code, setting] = key.split("||");
+    // --- Build table and track sums ---
+    let totalStandard = 0;
+    let totalNegotiated = 0;
+    
 
-      const standardMedian = median(items.map(x => Number(x.standard_charge)));
-      const negotiatedValues = items.map(x => {
-        const negotiated = Number(x.negotiated_charge);
-        const cash = Number(x.standard_cash_charge);
-        const standard = Number(x.standard_charge);
-        return negotiated > 0 ? negotiated : cash > 0 ? cash : standard * 0.9;
+    Object.keys(grouped)
+      .sort()
+      .forEach((key) => {
+        const items = grouped[key];
+        const [code, setting] = key.split("||");
+
+        const standardMedian = median(items.map((x) => Number(x.standard_charge)));
+        const negotiatedValues = items.map((x) => {
+          const negotiated = Number(x.negotiated_charge) > 0 ? Number(x.negotiated_charge) : null;
+          const cash = Number(x.standard_cash_charge) > 0 ? Number(x.standard_cash_charge) : null;
+          const standard = Number(x.standard_charge) > 0 ? Number(x.standard_charge) : null;
+          return negotiated || cash || (standard ? standard * 0.9 : null);
+        });
+        const negotiatedMedian = median(negotiatedValues);
+
+        totalStandard += standardMedian;
+        totalNegotiated += negotiatedMedian;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${code}</td>
+          <td>${descriptions[code] || ""}</td>
+          <td>${setting}</td>
+          <td>$${standardMedian.toFixed(0)}</td>
+          <td>$${negotiatedMedian.toFixed(0)}</td>
+        `;
+        pivotBody.appendChild(tr);
       });
-      const negotiatedMedian = median(negotiatedValues);
 
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${code}</td>
-        <td>${descriptions[code] || ""}</td>
-        <td>${setting}</td>
-        <td>$${standardMedian.toFixed(0)}</td>
-        <td>$${negotiatedMedian.toFixed(0)}</td>
-      `;
-      pivotBody.appendChild(tr);
-    });
+    // --- Total row ---
+    const totalRow = document.createElement("tr");
+    totalRow.style.fontWeight = "bold";
+    totalRow.style.backgroundColor = "#f0f0f0";
+    totalRow.innerHTML = `
+      <td colspan="3" style="text-align:right;">Total:</td>
+      <td>$${totalStandard.toFixed(0)}</td>
+      <td>$${totalNegotiated.toFixed(0)}</td>
+    `;
+    pivotBody.appendChild(totalRow);
 
-    // Append short visit summary at bottom
+    // --- Short visit summary ---
     if (displayedCodes.size > 0) {
       const summary = await getVisitSummary(Array.from(displayedCodes));
       const summaryTr = document.createElement("tr");
@@ -131,6 +163,125 @@ async function renderPivotTable(data) {
       `;
       pivotBody.appendChild(summaryTr);
     }
+  }
+
+  await buildTable();
+
+  if (settingFilter) {
+    settingFilter.addEventListener("change", async () => {
+      await buildTable(settingFilter.value);
+    });
+  }
+}
+
+async function renderComparePivotTable(data) {
+  const pivotBody = document.querySelector("#pivot-table tbody");
+  const settingFilter = document.querySelector("#setting-filter");
+  if (!pivotBody) return;
+
+  const uniqueCPTs = [...new Set(data.map((item) => item.cpt_code))];
+  const descriptions = await getMultipleCPTDescriptions(uniqueCPTs);
+
+  async function buildTable(filterSetting = "") {
+    pivotBody.innerHTML = "";
+    const displayedCodes = new Set();
+    const flaggedCharges = []; // <-- Array to hold suspicious charges
+
+    // Group data
+    const grouped = {};
+    data.forEach((item) => {
+      const setting = item.setting || "unknown";
+      if (filterSetting && setting !== filterSetting) return;
+      const key = `${item.cpt_code}||${setting}`;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(item);
+      displayedCodes.add(item.cpt_code);
+    });
+
+    let totalStandard = 0;
+    let totalNegotiated = 0;
+
+    Object.keys(grouped)
+  .sort()
+  .forEach((key) => {
+    const items = grouped[key];
+    const { cpt_code, setting, medianStandard, medianNegotiated, billedCharges } = items[0];
+
+    // --- LOG FOR DEBUGGING ---
+    console.log("Row data:", {
+      cpt_code,
+      medianStandard,
+      medianNegotiated,
+      billedCharges
+    });
+
+    // Flag suspicious charges
+    let suspicious = false;
+    if (billedCharges != null && medianNegotiated != null && medianNegotiated > 0) {
+      const percentAbove = (billedCharges - medianNegotiated) / medianNegotiated;
+      suspicious = billedCharges > medianNegotiated && percentAbove > 0.10;
+    }
+
+    if (suspicious) {
+      console.log(`Suspicious: ${cpt_code} (${setting}) billed ${billedCharges} vs negotiated ${medianNegotiated}`);
+    }
+
+    const tr = document.createElement("tr");
+    if (suspicious) {
+      tr.classList.add("suspicious-charge");
+      tr.title = "Suspicious: billed > 10% above negotiated";
+    }
+
+    tr.innerHTML = `
+      <td>${cpt_code}</td>
+      <td>${descriptions[cpt_code] || ""}</td>
+      <td>${setting}</td>
+      <td>$${medianStandard != null ? medianStandard.toFixed(0) : '0'}</td>
+      <td>$${medianNegotiated != null ? medianNegotiated.toFixed(0) : '0'}</td>
+      <td>${billedCharges != null ? `$${billedCharges.toFixed(0)}` : '<span class="text-muted">N/A</span>'}</td>
+    `;
+    pivotBody.appendChild(tr);
+  });
+
+    // Total row
+    const totalRow = document.createElement("tr");
+    totalRow.style.fontWeight = "bold";
+    totalRow.style.backgroundColor = "#f0f0f0";
+    totalRow.innerHTML = `
+      <td colspan="3" style="text-align:right;">Total:</td>
+      <td>$${totalStandard.toFixed(0)}</td>
+      <td>$${totalNegotiated.toFixed(0)}</td>
+      <td></td>
+    `;
+    pivotBody.appendChild(totalRow);
+
+    // Visit summary row
+    if (displayedCodes.size > 0) {
+      const summary = await getVisitSummary(Array.from(displayedCodes));
+      const summaryTr = document.createElement("tr");
+      summaryTr.innerHTML = `
+        <td colspan="6" style="font-style: italic; background-color: #f8f9fa;">
+          Visit Summary: ${summary}
+        </td>
+      `;
+      pivotBody.appendChild(summaryTr);
+    }
+
+    // --- Render flagged charges summary ---
+    const summaryContainer = document.getElementById("flagged-summary");
+    if (summaryContainer) {
+      if (flaggedCharges.length === 0) {
+        summaryContainer.innerHTML = "<p>No suspicious charges detected.</p>";
+      } else {
+        summaryContainer.innerHTML = flaggedCharges
+          .map(fc => 
+            `<p>${fc.cpt_code} (${fc.setting}): Billed $${fc.billedCharges.toFixed(0)} — ${fc.percentAbove}% above negotiated $${fc.medianNegotiated.toFixed(0)}</p>`
+          )
+          .join("");
+      }
+    }
+
+    return flaggedCharges; // can be used for letter generation
   }
 
   await buildTable();
@@ -154,7 +305,7 @@ function initTableControls() {
       const hospitalSelect = document.getElementById("hospital");
       const selectedHospital = hospitalSelect ? hospitalSelect.value.trim() : "";
 
-      rows.forEach(row => {
+      rows.forEach((row) => {
         const planName = row.cells[6].innerText.trim().toLowerCase();
         if (toggle.checked) {
           let showRow = true;
@@ -168,8 +319,10 @@ function initTableControls() {
 
   if (exportBtn && table) {
     exportBtn.addEventListener("click", () => {
-      const rows = Array.from(table.rows).filter(r => r.style.display !== "none");
-      const csvContent = rows.map(r => Array.from(r.cells).map(c => `"${c.innerText.replace(/"/g, '""')}"`).join(",")).join("\n");
+      const rows = Array.from(table.rows).filter((r) => r.style.display !== "none");
+      const csvContent = rows
+        .map((r) => Array.from(r.cells).map((c) => `"${c.innerText.replace(/"/g, '""')}"`).join(","))
+        .join("\n");
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -179,8 +332,16 @@ function initTableControls() {
   }
 }
 
+
+
 // --- Initialize everything ---
 document.addEventListener("DOMContentLoaded", () => {
-  if (window.pivotData) renderPivotTable(window.pivotData);
+  if (window.pivotData) {
+    if (window.showBilledCharges && window.billedChargesMap) {
+      renderComparePivotTable(window.pivotData, window.billedChargesMap);
+    } else {
+      renderPivotTable(window.pivotData);
+    }
+  }
   initTableControls();
 });

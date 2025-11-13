@@ -44,7 +44,7 @@ Users can:
 | Frontend | HTML, CSS (Bootstrap), JavaScript |
 | Backend | Node.js, Express.js |
 | Template Engine | EJS |
-| Data | Nationwide Children’s Hospital Pricing Transparency dataset |
+| Data | Pricing Transparency dataset from:  Nationwide Children's Hospital, Cleveland Clinic Main Campus,  OSU Medical Center, Riverside Methodist, Mount Carmel Dubln|
 | Export | JavaScript Blob + Excel-compatible CSV |
 
 ---

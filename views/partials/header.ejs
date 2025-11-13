@@ -19,9 +19,28 @@
             <span id="header-text" class="fs-4 d-flex align-items-center mb-3 mb-md-0 me-md-auto link-body-emphasis text-decoration-none">
                 Check My Bill
             </span>
-            <ul class="nav nav-pills"> 
-                <li class="nav-item"><a href="/" class="nav-link active" aria-current="page">Home</a></li> 
-                <li class="nav-item"><a href="/about" class="nav-link">About</a></li> 
-            </ul> 
+            <ul class="nav nav-pills d-flex justify-content-between align-items-center">
+                <!-- Left side: Export & New Search (only if results exist) -->
+                <div class="d-flex">
+                  <% if ((typeof results !== 'undefined' && results && results.length > 0) || (typeof pivotResults !== 'undefined' && pivotResults && pivotResults.length > 0)) { %>
+                    <li class="nav-item me-2">
+                      <button type="button" id="exportBtn" class="btn btn-success">Export</button>
+                    </li>
+                    <li class="nav-item">
+                      <a href="/" class="btn btn-secondary">New Search</a>
+                    </li>
+                  <% } %>
+                </div>
+              
+                <!-- Right side: Home & About -->
+                <div class="d-flex ms-3">
+                  <li class="nav-item me-2">
+                    <a href="/" class="nav-link active" aria-current="page">Home</a>
+                  </li>
+                  <li class="nav-item">
+                    <a href="/about" class="nav-link">About</a>
+                  </li>
+                </div>
+              </ul>
         </header> 
     </div> 

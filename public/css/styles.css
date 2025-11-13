@@ -19,6 +19,12 @@ h1, h3, h4 {
     background-color: #f1f3f5;
 }
 
+.suspicious-charge {
+    background-color: #ffe6e6 !important;
+    color: #a00 !important;
+    font-weight: bold;
+  }
+
 
 
 /* #header-text {

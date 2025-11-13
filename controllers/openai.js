@@ -1,12 +1,10 @@
 const OpenAI = require("openai");
 const { getCPTDescriptionFromDB, saveCPTDescriptionToDB } = require("../models/cptDescription");
+const { isPreventativeCareCode } = require("../models/preventativeCareCodes");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 module.exports = {
-  getTest: async (req, res) => {
-    res.json({ message: "GET route is working!" });
-  },
-
+  
   postDescription: async (req, res) => {
     try {
       const { code } = req.body;
@@ -20,6 +18,9 @@ module.exports = {
 
       // 2. If not in DB, fetch from OpenAI
       if (!summary) {
+        const isPreventative = await isPreventativeCareCode(code);
+        const prompt = `Provide a plain-language description of the procedure for CPT code ${code} in 1–2 short sentences. Do not include the CPT code or the word CPT in the description.`;
+        
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
@@ -29,12 +30,17 @@ module.exports = {
             },
             {
               role: "user",
-              content: `Provide a plain-language description of the procedure for CPT code ${code} in 1–2 short sentences. Do not include the CPT code or the word CPT in the description.`
+              content: prompt
             }
           ]
         });
 
-        summary = completion.choices[0].message.content;
+        let description = completion.choices[0].message.content;
+        if(isPreventative) {
+            description = `This is a preventative care procedure. ${description}`;
+        }
+
+        summary = description;
 
         // 3. Save new description to MongoDB
         await saveCPTDescriptionToDB(code, summary);
