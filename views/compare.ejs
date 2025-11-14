@@ -4,69 +4,76 @@
   <h2><%= title %></h2>
   <p><%= [...new Set(results.map(item => item.cpt_code))].join(", ") %></p>
   
-
-<!-- medicare toggle -->
-<div class="card mb-4 shadow-sm">
-<div class="card-body">
-    <div class="mb-3">
-    <div class="form-check form-switch mb-3"> 
-        <input class="form-check-input" type="checkbox" id="nonMedicareToggle">
-        <label class="form-check-label" for="nonMedicareToggle">Show Non-Medicare Only</label>
+  <!-- Medicare toggle -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <div class="mb-3">
+        <div class="form-check form-switch mb-3"> 
+          <input class="form-check-input" type="checkbox" id="nonMedicareToggle">
+          <label class="form-check-label" for="nonMedicareToggle">Show Non-Medicare Only</label>
+        </div>
+      </div>
     </div>
-    </div>
-</div>
-</div>
+  </div>
 
   <!-- Pivot Table Card -->
   <% if (pivotResults && pivotResults.length > 0) { %>
     <div class="card mb-4 shadow-sm">
       <div class="card-body">
         <div class="mb-3">
-            <label for="setting" class="form-label">Filter by Setting:</label>
-            <select class="form-select" id="setting-filter">
-              <option value="">All Settings</option>
-              <% const uniqueSettings = [...new Set(results.map(r => r.setting || "unknown"))]; %>
-              <% uniqueSettings.forEach(s => { %>
-                <option value="<%= s %>"><%= s %></option>
-              <% }) %>
-            </select>
-          </div>
-          <div class="table-responsive mt-3">
-            <table id="pivot-table" class="table table-bordered table-striped table-hover">
-              <thead class="table-light">
+          <label for="setting" class="form-label">Filter by Setting:</label>
+          <select class="form-select" id="setting-filter">
+            <option value="">All Settings</option>
+            <% const uniqueSettings = [...new Set(results.map(r => r.setting || "unknown"))]; %>
+            <% uniqueSettings.forEach(s => { %>
+              <option value="<%= s %>"><%= s %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="table-responsive mt-3">
+          <table id="pivot-table" class="table table-bordered table-striped table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>CPT Code</th>
+                <th>Description *AI generated</th>
+                <th>Setting</th>
+                <th>Median Standard Charge</th>
+                <th>Median Negotiated Charge</th>
+                <th>Billed Charges</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% pivotResults.forEach(item => { %>
                 <tr>
-                  <th>CPT Code</th>
-                  <th>Description *AI generated</th>
-                  <th>Setting</th>
-                  <th>Median Standard Charge</th>
-                  <th>Median Negotiated Charge</th>
-                  <th>Billed Charges</th>
+                  <td><%= item.cpt_code %></td>
+                  <td><%= item.description || 'N/A' %></td>
+                  <td><%= item.setting %></td>
+                  <td>$<%= item.medianStandard ? item.medianStandard.toFixed(0) : '0' %></td>
+                  <td>$<%= item.medianNegotiated ? item.medianNegotiated.toFixed(0) : '0' %></td>
+                  <td>
+                    <% if(item.billedCharges != null && item.billedCharges > 0) { %>
+                      $<%= item.billedCharges.toFixed(0) %>
+                    <% } else { %>
+                      <span class="text-muted">N/A</span>
+                    <% } %>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                <% pivotResults.forEach(item => { %>
-                  <tr>
-                    <td><%= item.cpt_code %></td>
-                    <td><%= item.description || 'N/A' %></td>
-                    <td><%= item.setting %></td>
-                    <td>
-                      $<%= item.medianStandard ? item.medianStandard.toFixed(0) : '0' %>
-                    </td>
-                    <td>
-                      $<%= item.medianNegotiated ? item.medianNegotiated.toFixed(0) : '0' %>
-                    </td>
-                    <td>
-                        <% if(item.billedCharges != null && item.billedCharges > 0) { %>
-                            $<%= item.billedCharges ? item.billedCharges.toFixed(0) : '0' %>
-                          <% } else { %>
-                            <span class="text-muted">N/A</span>
-                          <% } %>
-                    </td>
-                  </tr>
-                <% }) %>
-              </tbody>
-            </table>
-          </div>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Generate Visit Summary -->
+        <button id="generateVisitSummaryBtn" class="btn btn-secondary mt-3">Generate Visit Summary</button>
+        <div id="visit-summary-container" class="mt-3 mb-3"></div>
+
+        <!-- Letter generation -->
+        <button id="generateLetterBtn" class="btn btn-primary mt-3">Generate Letter</button>
+        <pre id="letterOutput" class="mt-3" style="white-space: pre-wrap;"></pre>
+        <button id="export-letter-btn" class="btn btn-primary mt-3" style="display: none;">
+          Export Letter
+        </button>
+        <pre id="generated-letter" style="display: none;"></pre>
       </div>
     </div>
   <% } %>
@@ -100,7 +107,7 @@
                   <td><%= item.setting %></td>
                   <td>$<%= Number(item.standard_charge || 0).toFixed(0) %></td>
                   <td>
-                    $<%
+                    <%
                       const negotiated = Number(item.negotiated_charge || 0);
                       const cash = Number(item.standard_cash_charge || 0);
                       const standard = Number(item.standard_charge || 0);
@@ -124,14 +131,14 @@
 </div>
 
 <% if (results && results.length > 0) { %>
-    <script>
-        window.pivotData = <%- JSON.stringify(pivotResults) %>;
-        window.showBilledCharges = true;
-        window.billedChargesMap = <%- JSON.stringify(pivotResults.reduce((acc, row) => {
-          acc[row.cpt_code] = row.billedCharges;
-          return acc;
-        }, {})) %>;
-    </script>
+  <script>
+    window.pivotData = <%- JSON.stringify(pivotResults) %>;
+    window.showBilledCharges = true;
+    window.billedChargesMap = <%- JSON.stringify(pivotResults.reduce((acc, row) => {
+      acc[row.cpt_code] = row.billedCharges;
+      return acc;
+    }, {})) %>;
+  </script>
 <% } %>
 
 <script type="module" src="/js/main.js"></script>

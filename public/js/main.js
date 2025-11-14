@@ -53,7 +53,7 @@ async function getVisitSummary(codes) {
     return data.summary || "No summary available.";
   } catch (err) {
     console.error("Error fetching visit summary:", err);
-    return "Error fetching summary.";
+    return "Error generating summary.";
   }
 }
 
@@ -83,22 +83,21 @@ function sortTable(n, tableId = "resultsTable") {
   table.querySelectorAll("th i")[n].className = sortDirections[n] ? "bi bi-arrow-down" : "bi bi-arrow-up";
 }
 
-// --- Pivot table rendering for Manual Upload ---
+// --- Manual Pivot Table Rendering ---
 async function renderPivotTable(data) {
-  console.log("we are using the render pivot table function!");
   const pivotBody = document.querySelector("#pivot-table tbody");
   const settingFilter = document.querySelector("#setting-filter");
   if (!pivotBody) return;
 
-  const uniqueCPTs = [...new Set(data.map((item) => item.cpt_code))];
+  const uniqueCPTs = [...new Set(data.map(item => item.cpt_code))];
   const descriptions = await getMultipleCPTDescriptions(uniqueCPTs);
 
   async function buildTable(filterSetting = "") {
     pivotBody.innerHTML = "";
-    const grouped = {};
     const displayedCodes = new Set();
 
-    data.forEach((item) => {
+    const grouped = {};
+    data.forEach(item => {
       const setting = item.setting || "unknown";
       if (filterSetting && setting !== filterSetting) return;
       const key = `${item.cpt_code}||${setting}`;
@@ -107,41 +106,36 @@ async function renderPivotTable(data) {
       displayedCodes.add(item.cpt_code);
     });
 
-    // --- Build table and track sums ---
     let totalStandard = 0;
     let totalNegotiated = 0;
-    
 
-    Object.keys(grouped)
-      .sort()
-      .forEach((key) => {
-        const items = grouped[key];
-        const [code, setting] = key.split("||");
+    Object.keys(grouped).sort().forEach(key => {
+      const items = grouped[key];
+      const [code, setting] = key.split("||");
 
-        const standardMedian = median(items.map((x) => Number(x.standard_charge)));
-        const negotiatedValues = items.map((x) => {
-          const negotiated = Number(x.negotiated_charge) > 0 ? Number(x.negotiated_charge) : null;
-          const cash = Number(x.standard_cash_charge) > 0 ? Number(x.standard_cash_charge) : null;
-          const standard = Number(x.standard_charge) > 0 ? Number(x.standard_charge) : null;
-          return negotiated || cash || (standard ? standard * 0.9 : null);
-        });
-        const negotiatedMedian = median(negotiatedValues);
-
-        totalStandard += standardMedian;
-        totalNegotiated += negotiatedMedian;
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${code}</td>
-          <td>${descriptions[code] || ""}</td>
-          <td>${setting}</td>
-          <td>$${standardMedian.toFixed(0)}</td>
-          <td>$${negotiatedMedian.toFixed(0)}</td>
-        `;
-        pivotBody.appendChild(tr);
+      const standardMedian = median(items.map(x => Number(x.standard_charge)));
+      const negotiatedValues = items.map(x => {
+        const negotiated = Number(x.negotiated_charge) > 0 ? Number(x.negotiated_charge) : null;
+        const cash = Number(x.standard_cash_charge) > 0 ? Number(x.standard_cash_charge) : null;
+        const standard = Number(x.standard_charge) > 0 ? Number(x.standard_charge) : null;
+        return negotiated || cash || (standard ? standard * 0.9 : null);
       });
+      const negotiatedMedian = median(negotiatedValues);
 
-    // --- Total row ---
+      totalStandard += standardMedian;
+      totalNegotiated += negotiatedMedian;
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${code}</td>
+        <td>${descriptions[code] || ""}</td>
+        <td>${setting}</td>
+        <td>$${standardMedian.toFixed(0)}</td>
+        <td>$${negotiatedMedian.toFixed(0)}</td>
+      `;
+      pivotBody.appendChild(tr);
+    });
+
     const totalRow = document.createElement("tr");
     totalRow.style.fontWeight = "bold";
     totalRow.style.backgroundColor = "#f0f0f0";
@@ -152,44 +146,39 @@ async function renderPivotTable(data) {
     `;
     pivotBody.appendChild(totalRow);
 
-    // --- Short visit summary ---
-    if (displayedCodes.size > 0) {
-      const summary = await getVisitSummary(Array.from(displayedCodes));
-      const summaryTr = document.createElement("tr");
-      summaryTr.innerHTML = `
-        <td colspan="5" style="font-style: italic; background-color: #f8f9fa;">
-          Visit Summary: ${summary}
-        </td>
-      `;
-      pivotBody.appendChild(summaryTr);
-    }
+    return Array.from(displayedCodes);
   }
 
-  await buildTable();
+  async function render(filterValue = settingFilter?.value || "") {
+    await buildTable(filterValue);
+    // Removed automatic addVisitSummary()
+  }
+
+  await render();
 
   if (settingFilter) {
     settingFilter.addEventListener("change", async () => {
-      await buildTable(settingFilter.value);
+      await render(settingFilter.value);
     });
   }
 }
 
+// --- Compare Pivot Table Rendering ---
 async function renderComparePivotTable(data) {
   const pivotBody = document.querySelector("#pivot-table tbody");
   const settingFilter = document.querySelector("#setting-filter");
   if (!pivotBody) return;
 
-  const uniqueCPTs = [...new Set(data.map((item) => item.cpt_code))];
+  const uniqueCPTs = [...new Set(data.map(item => item.cpt_code))];
   const descriptions = await getMultipleCPTDescriptions(uniqueCPTs);
 
   async function buildTable(filterSetting = "") {
     pivotBody.innerHTML = "";
     const displayedCodes = new Set();
-    const flaggedCharges = []; // <-- Array to hold suspicious charges
+    const flaggedCharges = [];
 
-    // Group data
     const grouped = {};
-    data.forEach((item) => {
+    data.forEach(item => {
       const setting = item.setting || "unknown";
       if (filterSetting && setting !== filterSetting) return;
       const key = `${item.cpt_code}||${setting}`;
@@ -200,48 +189,49 @@ async function renderComparePivotTable(data) {
 
     let totalStandard = 0;
     let totalNegotiated = 0;
+    let totalBilled = 0;
 
-    Object.keys(grouped)
-  .sort()
-  .forEach((key) => {
-    const items = grouped[key];
-    const { cpt_code, setting, medianStandard, medianNegotiated, billedCharges } = items[0];
+    Object.keys(grouped).sort().forEach(key => {
+      const items = grouped[key];
+      const { cpt_code, medianStandard, medianNegotiated, billedCharges, setting } = items[0];
 
-    // --- LOG FOR DEBUGGING ---
-    console.log("Row data:", {
-      cpt_code,
-      medianStandard,
-      medianNegotiated,
-      billedCharges
+      let suspicious = false;
+      if (billedCharges != null && medianNegotiated != null && medianNegotiated > 0) {
+        const percentAbove = (billedCharges - medianNegotiated) / medianNegotiated;
+        suspicious = billedCharges > medianNegotiated && percentAbove > 0.10;
+      }
+
+      if (suspicious) {
+        const percentAbove = (((billedCharges - medianNegotiated) / medianNegotiated) * 100).toFixed(1);
+        flaggedCharges.push({
+          cpt_code,
+          description: descriptions[cpt_code] || "",
+          setting,
+          billedCharges,
+          medianNegotiated,
+          percentAbove
+        });
+      }
+
+      const tr = document.createElement("tr");
+      if (suspicious) {
+        tr.classList.add("suspicious-charge");
+        tr.title = "Suspicious: billed > 10% above negotiated";
+      }
+      tr.innerHTML = `
+        <td>${cpt_code}</td>
+        <td>${descriptions[cpt_code] || ""}</td>
+        <td>${setting}</td>
+        <td>$${medianStandard != null ? medianStandard.toFixed(0) : '0'}</td>
+        <td>$${medianNegotiated != null ? medianNegotiated.toFixed(0) : '0'}</td>
+        <td>${billedCharges != null ? `$${billedCharges.toFixed(0)}` : '<span class="text-muted">N/A</span>'}</td>
+      `;
+      pivotBody.appendChild(tr);
+
+      totalStandard += medianStandard || 0;
+      totalNegotiated += medianNegotiated || 0;
+      totalBilled += billedCharges || 0;
     });
-
-    // Flag suspicious charges
-    let suspicious = false;
-    if (billedCharges != null && medianNegotiated != null && medianNegotiated > 0) {
-      const percentAbove = (billedCharges - medianNegotiated) / medianNegotiated;
-      suspicious = billedCharges > medianNegotiated && percentAbove > 0.10;
-    }
-
-    if (suspicious) {
-      console.log(`Suspicious: ${cpt_code} (${setting}) billed ${billedCharges} vs negotiated ${medianNegotiated}`);
-    }
-
-    const tr = document.createElement("tr");
-    if (suspicious) {
-      tr.classList.add("suspicious-charge");
-      tr.title = "Suspicious: billed > 10% above negotiated";
-    }
-
-    tr.innerHTML = `
-      <td>${cpt_code}</td>
-      <td>${descriptions[cpt_code] || ""}</td>
-      <td>${setting}</td>
-      <td>$${medianStandard != null ? medianStandard.toFixed(0) : '0'}</td>
-      <td>$${medianNegotiated != null ? medianNegotiated.toFixed(0) : '0'}</td>
-      <td>${billedCharges != null ? `$${billedCharges.toFixed(0)}` : '<span class="text-muted">N/A</span>'}</td>
-    `;
-    pivotBody.appendChild(tr);
-  });
 
     // Total row
     const totalRow = document.createElement("tr");
@@ -251,53 +241,46 @@ async function renderComparePivotTable(data) {
       <td colspan="3" style="text-align:right;">Total:</td>
       <td>$${totalStandard.toFixed(0)}</td>
       <td>$${totalNegotiated.toFixed(0)}</td>
-      <td></td>
+      <td>$${totalBilled.toFixed(0)}</td>
     `;
     pivotBody.appendChild(totalRow);
 
-    // Visit summary row
-    if (displayedCodes.size > 0) {
-      const summary = await getVisitSummary(Array.from(displayedCodes));
-      const summaryTr = document.createElement("tr");
-      summaryTr.innerHTML = `
-        <td colspan="6" style="font-style: italic; background-color: #f8f9fa;">
-          Visit Summary: ${summary}
+    // Flagged summary row
+    if (flaggedCharges.length > 0) {
+      const flaggedTr = document.createElement("tr");
+      flaggedTr.classList.add("flagged-summary-row");
+      flaggedTr.innerHTML = `
+        <td colspan="6" style="font-style: italic; background-color: #fff3cd;">
+          Suspicious charges: ${flaggedCharges.map(fc =>
+            `${fc.cpt_code} (${fc.setting}): $${fc.billedCharges.toFixed(0)} > $${fc.medianNegotiated.toFixed(0)} (${fc.percentAbove}% above)`
+          ).join("; ")}
         </td>
       `;
-      pivotBody.appendChild(summaryTr);
+      pivotBody.appendChild(flaggedTr);
     }
 
-    // --- Render flagged charges summary ---
-    const summaryContainer = document.getElementById("flagged-summary");
-    if (summaryContainer) {
-      if (flaggedCharges.length === 0) {
-        summaryContainer.innerHTML = "<p>No suspicious charges detected.</p>";
-      } else {
-        summaryContainer.innerHTML = flaggedCharges
-          .map(fc => 
-            `<p>${fc.cpt_code} (${fc.setting}): Billed $${fc.billedCharges.toFixed(0)} — ${fc.percentAbove}% above negotiated $${fc.medianNegotiated.toFixed(0)}</p>`
-          )
-          .join("");
-      }
-    }
-
-    return flaggedCharges; // can be used for letter generation
+    return { displayedCodes: Array.from(displayedCodes), flaggedCharges };
   }
 
-  await buildTable();
+  async function render(filterValue = settingFilter?.value || "") {
+    const result = await buildTable(filterValue);
+    window.flaggedCharges = result.flaggedCharges;
+    // Removed automatic addVisitSummary()
+  }
+
+  await render();
 
   if (settingFilter) {
     settingFilter.addEventListener("change", async () => {
-      await buildTable(settingFilter.value);
+      await render(settingFilter.value);
     });
   }
 }
 
-// --- Export & toggle ---
+// --- Medicare toggle & init ---
 function initTableControls() {
   const toggle = document.getElementById("nonMedicareToggle");
   const table = document.getElementById("resultsTable");
-  const exportBtn = document.getElementById("exportBtn");
 
   if (toggle && table) {
     toggle.addEventListener("change", () => {
@@ -316,32 +299,119 @@ function initTableControls() {
       });
     });
   }
-
-  if (exportBtn && table) {
-    exportBtn.addEventListener("click", () => {
-      const rows = Array.from(table.rows).filter((r) => r.style.display !== "none");
-      const csvContent = rows
-        .map((r) => Array.from(r.cells).map((c) => `"${c.innerText.replace(/"/g, '""')}"`).join(","))
-        .join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "search_results.csv";
-      link.click();
-    });
-  }
 }
 
+// --- Generate Visit Summary Button ---
+document.getElementById("generateVisitSummaryBtn")?.addEventListener("click", async () => {
+  const pivotBody = document.querySelector("#pivot-table tbody");
+  const button = document.getElementById("generateVisitSummaryBtn");
+  const summaryContainer = document.getElementById("visit-summary-container");
 
+  if (!pivotBody || !summaryContainer || !button) return;
 
-// --- Initialize everything ---
-document.addEventListener("DOMContentLoaded", () => {
-  if (window.pivotData) {
-    if (window.showBilledCharges && window.billedChargesMap) {
-      renderComparePivotTable(window.pivotData, window.billedChargesMap);
-    } else {
-      renderPivotTable(window.pivotData);
-    }
+  // Collect all CPT codes currently displayed in the pivot table
+  const displayedCodes = Array.from(pivotBody.querySelectorAll("tr"))
+    .map(tr => tr.cells[0]?.innerText)
+    .filter(code => code && code.trim() !== "");
+
+  if (displayedCodes.length === 0) {
+    alert("No CPT codes available for summary.");
+    return;
   }
+
+  // Disable button while generating
+  button.disabled = true;
+  summaryContainer.textContent = "Generating summary...";
+
+  try {
+    const summary = await getVisitSummary(displayedCodes);
+    summaryContainer.textContent = summary;
+
+    // Hide the button now that summary is generated
+    button.style.display = "none";
+  } catch (err) {
+    console.error("Error generating visit summary:", err);
+    summaryContainer.textContent = "Error generating visit summary.";
+    button.disabled = false; // re-enable if error
+  }
+});
+
+
+// --- Generate Letter Button ---
+document.getElementById("generateLetterBtn")?.addEventListener("click", async () => {
+  const button = document.getElementById("generateLetterBtn");
+  const letterContainer = document.getElementById("letterOutput"); // updated to match EJS
+
+  if (!button || !letterContainer) return;
+
+  if (!window.flaggedCharges || window.flaggedCharges.length === 0) {
+    alert("No flagged charges to generate a letter.");
+    return;
+  }
+
+  // Update button state
+  button.disabled = true;
+  button.textContent = "Generating Letter...";
+  letterContainer.textContent = "Generating letter...";
+
+  try {
+    const res = await fetch("/api/generate-letter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ flaggedCharges: window.flaggedCharges }),
+    });
+
+    if (!res.ok) throw new Error("Failed to generate letter");
+
+    const data = await res.json();
+    const letter = data.letter || "No letter generated.";
+
+    // Display letter
+    letterContainer.textContent = letter;
+
+    // Show Export button
+    const exportBtn = document.getElementById("export-letter-btn"); // updated to match EJS
+    if (exportBtn) {
+      exportBtn.style.display = "inline-block";
+    }
+
+    // Reset button text
+    button.textContent = "Generate Letter";
+    button.disabled = false;
+
+  } catch (err) {
+    console.error("Error generating letter:", err);
+    letterContainer.textContent = "Error generating letter.";
+    button.disabled = false;
+    button.textContent = "Generate Letter";
+  }
+});
+
+// --- Export Letter Button ---
+document.getElementById("export-letter-btn")?.addEventListener("click", () => {
+  const letterContainer = document.getElementById("letterOutput"); // updated to match EJS
+  if (!letterContainer) return;
+
+  const text = letterContainer.textContent;
+  if (!text) return;
+
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "billing_letter.txt";
+  a.click();
+  URL.revokeObjectURL(url);
+});
+// --- Initialize everything ---
+document.addEventListener("DOMContentLoaded", async () => {
+  if (!window.pivotData) return;
+
+  if (window.showBilledCharges) {
+    await renderComparePivotTable(window.pivotData);
+  } else {
+    await renderPivotTable(window.pivotData);
+  }
+
   initTableControls();
 });
