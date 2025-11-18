@@ -219,6 +219,7 @@ async function renderComparePivotTable(data) {
         tr.title = "Suspicious: billed > 10% above negotiated";
       }
       tr.innerHTML = `
+        <td><input type="checkbox"></td>
         <td>${cpt_code}</td>
         <td>${descriptions[cpt_code] || ""}</td>
         <td>${setting}</td>
@@ -238,7 +239,7 @@ async function renderComparePivotTable(data) {
     totalRow.style.fontWeight = "bold";
     totalRow.style.backgroundColor = "#f0f0f0";
     totalRow.innerHTML = `
-      <td colspan="3" style="text-align:right;">Total:</td>
+      <td colspan="4" style="text-align:right;">Total:</td>
       <td>$${totalStandard.toFixed(0)}</td>
       <td>$${totalNegotiated.toFixed(0)}</td>
       <td>$${totalBilled.toFixed(0)}</td>
@@ -250,7 +251,7 @@ async function renderComparePivotTable(data) {
       const flaggedTr = document.createElement("tr");
       flaggedTr.classList.add("flagged-summary-row");
       flaggedTr.innerHTML = `
-        <td colspan="6" style="font-style: italic; background-color: #fff3cd;">
+        <td colspan="7" style="font-style: italic; background-color: #fff3cd;">
           Suspicious charges: ${flaggedCharges.map(fc =>
             `${fc.cpt_code} (${fc.setting}): $${fc.billedCharges.toFixed(0)} > $${fc.medianNegotiated.toFixed(0)} (${fc.percentAbove}% above)`
           ).join("; ")}

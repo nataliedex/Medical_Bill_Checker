@@ -34,6 +34,7 @@
           <table id="pivot-table" class="table table-bordered table-striped table-hover">
             <thead class="table-light">
               <tr>
+                <th>Dispute</th>
                 <th>CPT Code</th>
                 <th>Description *AI generated</th>
                 <th>Setting</th>
@@ -45,6 +46,7 @@
             <tbody>
               <% pivotResults.forEach(item => { %>
                 <tr>
+                    <td><input type="checkbox" name="dispute" value=""></td>
                   <td><%= item.cpt_code %></td>
                   <td><%= item.description || 'N/A' %></td>
                   <td><%= item.setting %></td>

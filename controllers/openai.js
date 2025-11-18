@@ -59,7 +59,10 @@ module.exports = {
       const { codes } = req.body;
       if (!codes || !codes.length) return res.status(400).json({ summary: "No CPT codes provided." });
 
-      const prompt = `Summarize a patient visit for these CPT codes in 6-10 sentences, in plain language: ${codes.join(", ")}`;
+      const prompt = `Summarize a patient visit for these CPT codes in 6-10 sentences, in plain language: ${codes.join(", ")} 
+      Do not talk about the prices in this summary.  Only talk about procedures in plain language for non-medical people.
+      Please state the CPT code in the summary.
+      If a procedure is normally a preventative service, please note that in the summary.`;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
