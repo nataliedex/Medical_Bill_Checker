@@ -45,3 +45,23 @@ h1, h3, h4 {
     text-transform: uppercase;
     color: #007bff;
 }
+
+
+.dispute-note-row > td {
+width: 100% !important;
+white-space: normal !important;
+}
+
+.dispute-note-row textarea {
+width: 100% !important;
+}
+
+.dispute-note-row td {
+    padding: 0;          /* remove default cell padding */
+}
+  
+.dispute-note-row textarea {
+    width: 100%;         /* ensure full width of the td */
+    box-sizing: border-box; /* include padding/border in width */
+    margin: 0;           /* optional: remove extra margin */
+}

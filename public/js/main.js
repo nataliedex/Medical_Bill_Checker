@@ -33,15 +33,13 @@ async function getCPTDescription(code) {
 
 async function getMultipleCPTDescriptions(codes) {
   const descriptions = {};
-  await Promise.all(
-    codes.map(async (code) => {
-      descriptions[code] = await getCPTDescription(code);
-    })
-  );
+  await Promise.all(codes.map(async code => {
+    descriptions[code] = await getCPTDescription(code);
+  }));
   return descriptions;
 }
 
-// --- Fetch short visit summary ---
+// --- Fetch visit summary ---
 async function getVisitSummary(codes) {
   try {
     const res = await fetch("/api/summarize-visit", {
@@ -72,18 +70,16 @@ function sortTable(n, tableId = "resultsTable") {
     const valB = b.cells[n].innerText.replace(/[^0-9.-]+/g, "");
     const numA = parseFloat(valA);
     const numB = parseFloat(valB);
-
     if (!isNaN(numA) && !isNaN(numB)) return (numA - numB) * direction;
     return a.cells[n].innerText.localeCompare(b.cells[n].innerText) * direction;
   });
 
-  rows.forEach((row) => tbody.appendChild(row));
-
-  table.querySelectorAll("th i").forEach((i) => (i.className = "bi bi-arrow-down-up"));
+  rows.forEach(row => tbody.appendChild(row));
+  table.querySelectorAll("th i").forEach(i => i.className = "bi bi-arrow-down-up");
   table.querySelectorAll("th i")[n].className = sortDirections[n] ? "bi bi-arrow-down" : "bi bi-arrow-up";
 }
 
-// --- Manual Pivot Table Rendering ---
+// --- Pivot Table Rendering ---
 async function renderPivotTable(data) {
   const pivotBody = document.querySelector("#pivot-table tbody");
   const settingFilter = document.querySelector("#setting-filter");
@@ -151,15 +147,12 @@ async function renderPivotTable(data) {
 
   async function render(filterValue = settingFilter?.value || "") {
     await buildTable(filterValue);
-    // Removed automatic addVisitSummary()
   }
 
   await render();
 
   if (settingFilter) {
-    settingFilter.addEventListener("change", async () => {
-      await render(settingFilter.value);
-    });
+    settingFilter.addEventListener("change", async () => await render(settingFilter.value));
   }
 }
 
@@ -187,9 +180,7 @@ async function renderComparePivotTable(data) {
       displayedCodes.add(item.cpt_code);
     });
 
-    let totalStandard = 0;
-    let totalNegotiated = 0;
-    let totalBilled = 0;
+    let totalStandard = 0, totalNegotiated = 0, totalBilled = 0;
 
     Object.keys(grouped).sort().forEach(key => {
       const items = grouped[key];
@@ -218,16 +209,56 @@ async function renderComparePivotTable(data) {
         tr.classList.add("suspicious-charge");
         tr.title = "Suspicious: billed > 10% above negotiated";
       }
+
       tr.innerHTML = `
-        <td><input type="checkbox"></td>
-        <td>${cpt_code}</td>
-        <td>${descriptions[cpt_code] || ""}</td>
-        <td>${setting}</td>
-        <td>$${medianStandard != null ? medianStandard.toFixed(0) : '0'}</td>
-        <td>$${medianNegotiated != null ? medianNegotiated.toFixed(0) : '0'}</td>
-        <td>${billedCharges != null ? `$${billedCharges.toFixed(0)}` : '<span class="text-muted">N/A</span>'}</td>
+  <td class="dispute-cell" style="vertical-align:top;">
+    <input type="checkbox" class="dispute-checkbox" aria-label="Dispute this charge">
+  </td>
+  <td>${cpt_code}</td>
+  <td>${descriptions[cpt_code] || ""}</td>
+  <td>${setting}</td>
+  <td>$${medianStandard != null ? medianStandard.toFixed(0) : '0'}</td>
+  <td>$${medianNegotiated != null ? medianNegotiated.toFixed(0) : '0'}</td>
+  <td>${billedCharges != null ? `$${billedCharges.toFixed(0)}` : '<span class="text-muted">N/A</span>'}</td>
+`;
+pivotBody.appendChild(tr);
+
+
+   
+
+    // Add dispute note row on checkbox toggle
+const checkbox = tr.querySelector(".dispute-checkbox");
+if (checkbox) {
+  checkbox.addEventListener("change", (e) => {
+
+    // Remove an existing dispute-note-row if present
+    let existingNoteRow = tr.nextElementSibling;
+    if (existingNoteRow && existingNoteRow.classList.contains("dispute-note-row")) {
+      existingNoteRow.remove();
+    }
+
+    // If checked, insert the dispute textarea row
+    if (e.target.checked) {
+      const noteRow = document.createElement("tr");
+      noteRow.classList.add("dispute-note-row");
+
+      const colspan = tr.children.length;
+
+      noteRow.innerHTML = `
+        <td colspan="${colspan}" style="background-color:#f9f9f9; padding:12px;">
+          <label class="fw-bold">Add clarification for CPT ${cpt_code}:</label>
+          <textarea class="form-control mt-2 dispute-note-text"
+            rows="3"
+            placeholder="Explain why this charge is incorrect or requires review..."></textarea>
+        </td>
       `;
-      pivotBody.appendChild(tr);
+
+      tr.insertAdjacentElement("afterend", noteRow);
+    }
+  });
+}
+
+
 
       totalStandard += medianStandard || 0;
       totalNegotiated += medianNegotiated || 0;
@@ -266,153 +297,253 @@ async function renderComparePivotTable(data) {
   async function render(filterValue = settingFilter?.value || "") {
     const result = await buildTable(filterValue);
     window.flaggedCharges = result.flaggedCharges;
-    // Removed automatic addVisitSummary()
   }
 
   await render();
 
   if (settingFilter) {
-    settingFilter.addEventListener("change", async () => {
-      await render(settingFilter.value);
-    });
+    settingFilter.addEventListener("change", async () => await render(settingFilter.value));
   }
 }
 
-// --- Medicare toggle & init ---
-function initTableControls() {
+// helper function to gather dispute notes
+function gatherDisputeNotes() {
+  const rows = document.querySelectorAll(".pivot-data-row");
+
+  const notes = {};
+
+  rows.forEach(row => {
+    const checkbox = row.querySelector(".dispute-checkbox");
+    if (!checkbox || !checkbox.checked) return;
+
+    const cpt = row.children[1].textContent.trim();
+
+    const noteRow = row.nextElementSibling;
+    if (noteRow && noteRow.classList.contains("dispute-note-row")) {
+      const text = noteRow.querySelector(".dispute-note-text")?.value.trim() || "";
+      notes[cpt] = text;
+    }
+  });
+
+  return notes;
+}
+
+// --- Medicare / Medicaid Toggle for RAW DATA only ---
+function initRawTableToggle() {
   const toggle = document.getElementById("nonMedicareToggle");
-  const table = document.getElementById("resultsTable");
+  const hospitalSelect = document.getElementById("hospital");
+  const rawTables = document.querySelectorAll("table#resultsTable"); // works for index + compare
 
-  if (toggle && table) {
-    toggle.addEventListener("change", () => {
+  if (!toggle || rawTables.length === 0) return;
+
+  toggle.addEventListener("change", () => {
+    const selectedHospital = hospitalSelect ? hospitalSelect.value : "";
+
+    rawTables.forEach(table => {
       const rows = Array.from(table.tBodies[0].rows);
-      const hospitalSelect = document.getElementById("hospital");
-      const selectedHospital = hospitalSelect ? hospitalSelect.value.trim() : "";
 
-      rows.forEach((row) => {
-        const planName = row.cells[6].innerText.trim().toLowerCase();
-        if (toggle.checked) {
-          let showRow = true;
-          if (selectedHospital === "nch_data") showRow = planName === "all products";
-          else showRow = !planName.includes("medicare") && !planName.includes("medicaid");
-          row.style.display = showRow ? "" : "none";
-        } else row.style.display = "";
+      rows.forEach(row => {
+        // IMPORTANT:
+        // Raw table columns:
+        // 0 = CPT
+        // 1 = Setting
+        // 2 = Standard
+        // 3 = Negotiated
+        // 4 = Payer
+        // 5 = Plan Name   <--- THIS is what we filter on
+
+        const planName = row.cells[5].innerText.trim().toLowerCase();
+
+        if (!toggle.checked) {
+          // Toggle OFF → show all rows
+          row.style.display = "";
+          return;
+        }
+
+        // Toggle ON → hide medicare + medicaid unless this hospital has a special rule
+        let shouldShow = true;
+
+        if (selectedHospital === "nch_data") {
+          // NCH uses ONLY "All Products"
+          shouldShow = planName === "all products";
+        } else {
+          // Everyone else: exclude medicare/medicaid
+          shouldShow = !planName.includes("medicare") && !planName.includes("medicaid");
+        }
+
+        row.style.display = shouldShow ? "" : "none";
       });
     });
-  }
+  });
 }
 
-// --- Generate Visit Summary Button ---
-document.getElementById("generateVisitSummaryBtn")?.addEventListener("click", async () => {
-  const pivotBody = document.querySelector("#pivot-table tbody");
-  const button = document.getElementById("generateVisitSummaryBtn");
-  const summaryContainer = document.getElementById("visit-summary-container");
 
-  if (!pivotBody || !summaryContainer || !button) return;
+// --- Export table to CSV ---
+function exportTableToCSV(table, filename = "raw_data.csv") {
+  if (!table) return alert("No table found to export.");
 
-  // Collect all CPT codes currently displayed in the pivot table
-  const displayedCodes = Array.from(pivotBody.querySelectorAll("tr"))
-    .map(tr => tr.cells[0]?.innerText)
-    .filter(code => code && code.trim() !== "");
+  const rows = Array.from(table.rows);
+  const csv = rows.map(row => {
+    const cells = Array.from(row.cells);
+    return cells.map(cell => `"${cell.innerText.replace(/"/g, '""')}"`).join(",");
+  }).join("\n");
 
-  if (displayedCodes.length === 0) {
-    alert("No CPT codes available for summary.");
-    return;
-  }
-
-  // Disable button while generating
-  button.disabled = true;
-  summaryContainer.textContent = "Generating summary...";
-
-  try {
-    const summary = await getVisitSummary(displayedCodes);
-    summaryContainer.textContent = summary;
-
-    // Hide the button now that summary is generated
-    button.style.display = "none";
-  } catch (err) {
-    console.error("Error generating visit summary:", err);
-    summaryContainer.textContent = "Error generating visit summary.";
-    button.disabled = false; // re-enable if error
-  }
-});
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
 
-// --- Generate Letter Button ---
-document.getElementById("generateLetterBtn")?.addEventListener("click", async () => {
-  const button = document.getElementById("generateLetterBtn");
-  const letterContainer = document.getElementById("letterOutput"); // updated to match EJS
 
-  if (!button || !letterContainer) return;
-
-  if (!window.flaggedCharges || window.flaggedCharges.length === 0) {
-    alert("No flagged charges to generate a letter.");
-    return;
-  }
-
-  // Update button state
-  button.disabled = true;
-  button.textContent = "Generating Letter...";
-  letterContainer.textContent = "Generating letter...";
-
-  try {
-    const res = await fetch("/api/generate-letter", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ flaggedCharges: window.flaggedCharges }),
-    });
-
-    if (!res.ok) throw new Error("Failed to generate letter");
-
-    const data = await res.json();
-    const letter = data.letter || "No letter generated.";
-
-    // Display letter
-    letterContainer.textContent = letter;
-
-    // Show Export button
-    const exportBtn = document.getElementById("export-letter-btn"); // updated to match EJS
-    if (exportBtn) {
-      exportBtn.style.display = "inline-block";
-    }
-
-    // Reset button text
-    button.textContent = "Generate Letter";
-    button.disabled = false;
-
-  } catch (err) {
-    console.error("Error generating letter:", err);
-    letterContainer.textContent = "Error generating letter.";
-    button.disabled = false;
-    button.textContent = "Generate Letter";
-  }
-});
-
-// --- Export Letter Button ---
-document.getElementById("export-letter-btn")?.addEventListener("click", () => {
-  const letterContainer = document.getElementById("letterOutput"); // updated to match EJS
-  if (!letterContainer) return;
-
-  const text = letterContainer.textContent;
-  if (!text) return;
-
-  const blob = new Blob([text], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "billing_letter.txt";
-  a.click();
-  URL.revokeObjectURL(url);
-});
 // --- Initialize everything ---
 document.addEventListener("DOMContentLoaded", async () => {
-  if (!window.pivotData) return;
-
-  if (window.showBilledCharges) {
-    await renderComparePivotTable(window.pivotData);
-  } else {
-    await renderPivotTable(window.pivotData);
+  // --- Pivot table rendering ---
+  if (window.pivotData) {
+    if (window.showBilledCharges) {
+      await renderComparePivotTable(window.pivotData);
+      // insertNoteRowIntoPivot();
+    } else {
+      await renderPivotTable(window.pivotData);
+    }
   }
 
-  initTableControls();
+  // --- Raw table toggle ---
+  initRawTableToggle();
+
+  // --- Export buttons for each table ---
+  // --- Export buttons ---
+  document.querySelectorAll(".export-btn").forEach(button => {
+    // remove any previous listeners just in case
+    button.replaceWith(button.cloneNode(true));
+  });
+  document.querySelectorAll(".export-btn").forEach(button => {
+    button.addEventListener("click", () => {
+      const card = button.closest(".card"); // find the wrapping card
+      const table = card.querySelector("#resultsTable");
+      exportTableToCSV(table, "raw_data.csv");
+    });
+  });
+
+  // --- Generate Visit Summary ---
+
+  const visitSummaryBtn = document.getElementById("generateVisitSummaryBtn");
+
+  if (visitSummaryBtn) {
+    visitSummaryBtn.addEventListener("click", async () => {
+      const tableBody = document.querySelector("#pivot-table tbody");
+      if (!tableBody) return alert("No pivot table found to generate summary.");
+  
+      const rows = Array.from(tableBody.querySelectorAll("tr"));
+      const dataRows = rows.filter(row => row.querySelector("td") && !row.classList.contains("total-row"));
+  
+      if (!dataRows.length) return alert("No CPT rows found in the table.");
+  
+      let cptIndex = 0;
+      if (dataRows[0].querySelector("input.dispute-checkbox")) {
+        cptIndex = 1; // CPT code is second cell if dispute column exists
+      }
+  
+      const codes = dataRows.map(row => {
+        const cptTd = row.querySelector("td:not(.dispute-cell");
+        return cptTd ? cptTd.innerText.trim() : null;
+      }).filter(code => code);
+  
+      if (!codes.length) return alert("No CPT codes found in the table.");
+  
+      const container = document.getElementById("visit-summary-container");
+      container.innerHTML = `<p>Generating visit summary...</p>`;
+  
+      try {
+        const summary = await getVisitSummary(codes);
+        container.innerHTML = `
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h5>Visit Summary:</h5>
+              <p>${summary}</p>
+            </div>
+          </div>
+        `;
+  
+        // Remove the button after summary is generated
+        visitSummaryBtn.remove();
+  
+      } catch (err) {
+        console.error("Error generating visit summary:", err);
+        container.innerHTML = `<p class="text-danger">Error generating summary. Please try again.</p>`;
+      }
+    });
+  }
+
+  // --- Generate Letter ---
+const generateLetterBtn = document.getElementById("generateLetterBtn");
+const letterOutput = document.getElementById("letterOutput");
+const generatedLetterPre = document.getElementById("generated-letter");
+
+if (generateLetterBtn && letterOutput && generatedLetterPre) {
+  generateLetterBtn.addEventListener("click", async () => {
+    letterOutput.textContent = "Generating letter...";
+  
+    try {
+      const disputeNotes = gatherDisputeNotes(); // { "99213": "note text", ... }
+  
+      // 1️⃣ Start with flagged charges and attach notes
+      const fullChargeList = window.flaggedCharges.map(fc => ({
+        ...fc,
+        disputeNote: disputeNotes[fc.cpt_code] || ""
+      }));
+  
+      // 2️⃣ Include any non-flagged rows that have a dispute note
+      document.querySelectorAll(".pivot-data-row").forEach(row => {
+        const cpt = row.children[1].textContent.trim();
+  
+        // Skip if already in fullChargeList or no note exists
+        if (fullChargeList.find(item => item.cpt_code === cpt) || !disputeNotes[cpt]) return;
+  
+        fullChargeList.push({
+          cpt_code: cpt,
+          description: row.children[2].textContent.trim(),
+          billed: parseFloat(row.children[6].textContent.replace(/\$|,/g, '')) || 0,
+          negotiated: parseFloat(row.children[5].textContent.replace(/\$|,/g, '')) || 0,
+          percentAbove: 0, // non-flagged row
+          disputeNote: disputeNotes[cpt]
+        });
+      });
+  
+      // 3️⃣ Send to backend
+      const res = await fetch("/api/generate-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flaggedCharges: fullChargeList }),
+      });
+  
+      if (!res.ok) {
+        const err = await res.json();
+        letterOutput.textContent = `Error: ${err.error || res.statusText}`;
+        return;
+      }
+  
+      const data = await res.json();
+      letterOutput.textContent = data.letter;
+      generatedLetterPre.textContent = data.letter;
+  
+      // Hide Generate Letter button & show export button
+      generateLetterBtn.style.display = "none";
+      document.querySelectorAll(".export-letter-btn").forEach(btn => btn.style.display = "inline-block");
+  
+    } catch (err) {
+      console.error("Error generating letter:", err);
+      letterOutput.textContent = "Error generating letter. See console for details.";
+    }
+  });
+
+  
+}
+  
+ 
+
 });

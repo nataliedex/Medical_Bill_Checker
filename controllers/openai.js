@@ -83,53 +83,56 @@ module.exports = {
 
   getLetter: async (req, res) => {
     try {
-      console.log("Incoming body:", req.body); 
-
+      console.log("Incoming body:", req.body);
+  
       const { flaggedCharges } = req.body;
-
+  
       if (!flaggedCharges || !Array.isArray(flaggedCharges) || flaggedCharges.length === 0) {
-        return res.status(400).json({ error: "No flagged charges provided." });
+        return res.status(400).json({ error: "No charges provided." });
       }
-
+  
+      // Build JSON for prompt, now including disputeNote
       const chargeList = flaggedCharges.map(fc => ({
         cpt_code: fc.cpt_code,
         description: fc.description || "",
-        billed: fc.billedCharges,
-        negotiated: fc.medianNegotiated,
-        percentAbove: fc.percentAbove
+        billed: fc.billedCharges || fc.billed || 0,
+        negotiated: fc.medianNegotiated || fc.negotiated || 0,
+        percentAbove: fc.percentAbove || 0,
+        disputeNote: fc.disputeNote || ""
       }));
-      
+  
       const chargeListJSON = JSON.stringify(chargeList, null, 2);
-
+  
       const prompt = `
-You are a professional consumer advocate helping a patient draft a billing clarification letter.
-
-Use ONLY the information provided in the flagged charges JSON below.
-You MUST reference every charge, using the actual values (CPT code, description, billed amount, median negotiated price, percent above negotiated). 
-Do not use placeholders or invent any information.
-
-Flagged Charges (JSON):
-${chargeListJSON}
-
-Write a concise, factual, respectful letter that includes:
-
-1. A heading block with placeholders for the patient’s name, address, contact info, and the date.
-
-2. An introduction explaining that the patient reviewed their bill and compared it to publicly available hospital pricing data.
-
-3. A clearly formatted list of all flagged charges. For each charge, list:
-   - CPT Code
-   - Billed Amount
-   - Median Negotiated Price
-   - Percent Above Negotiated
-
-4. A short paragraph requesting clarification or reconsideration of the above charges in light of the pricing data.
-
-5. A polite closing thanking the billing department and leaving space for the patient’s signature.
-
-Keep the tone respectful, factual, and concise. Avoid general medical explanations or assumptions not included in the data.
-`;
-
+  You are a professional consumer advocate helping a patient draft a billing clarification letter.
+  
+  Use ONLY the information provided in the charges JSON below.
+  You MUST reference every charge, using the actual values (CPT code, description, billed amount, median negotiated price, percent above negotiated, and dispute notes if present). 
+  Do not invent any information.
+  
+  Charges (JSON):
+  ${chargeListJSON}
+  
+  Write a concise, factual, respectful letter that includes:
+  
+  1. A heading block with placeholders for the patient’s name, address, contact info, and the date.
+  
+  2. An introduction explaining that the patient reviewed their bill and compared it to publicly available hospital pricing data.
+  
+  3. A clearly formatted list of all charges. For each charge, list:
+     - CPT Code
+     - Billed Amount
+     - Median Negotiated Price
+     - Percent Above Negotiated
+     - Include the dispute note if present
+  
+  4. A short paragraph requesting clarification or reconsideration of the above charges in light of the pricing data.
+  
+  5. A polite closing thanking the billing department and leaving space for the patient’s signature.
+  
+  Keep the tone respectful, factual, and concise. Avoid general medical explanations or assumptions not included in the data.
+  `;
+  
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -138,9 +141,10 @@ Keep the tone respectful, factual, and concise. Avoid general medical explanatio
         ],
         temperature: 0.4
       });
-
+  
       const letter = completion.choices[0].message.content.trim();
       res.json({ letter });
+  
     } catch (error) {
       console.error("Error generating letter:", error);
       res.status(500).json({ error: "Failed to generate letter." });
