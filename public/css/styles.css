@@ -25,6 +25,13 @@ h1, h3, h4 {
     font-weight: bold;
   }
 
+#generated-letter {
+    font-family: inherit;  /* match app’s font */
+    white-space: pre-wrap; /* still preserve line breaks */
+    font-size: 16px;       /* or whatever matches your UI */
+    line-height: 1.6;
+}
+
 
 
 /* #header-text {

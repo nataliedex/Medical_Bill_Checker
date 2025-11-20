@@ -104,34 +104,68 @@ module.exports = {
       const chargeListJSON = JSON.stringify(chargeList, null, 2);
   
       const prompt = `
-  You are a professional consumer advocate helping a patient draft a billing clarification letter.
-  
-  Use ONLY the information provided in the charges JSON below.
-  You MUST reference every charge, using the actual values (CPT code, description, billed amount, median negotiated price, percent above negotiated, and dispute notes if present). 
-  Do not invent any information.
-  
-  Charges (JSON):
-  ${chargeListJSON}
-  
-  Write a concise, factual, respectful letter that includes:
-  
-  1. A heading block with placeholders for the patient’s name, address, contact info, and the date.
-  
-  2. An introduction explaining that the patient reviewed their bill and compared it to publicly available hospital pricing data.
-  
-  3. A clearly formatted list of all charges. For each charge, list:
-     - CPT Code
-     - Billed Amount
-     - Median Negotiated Price
-     - Percent Above Negotiated
-     - Include the dispute note if present
-  
-  4. A short paragraph requesting clarification or reconsideration of the above charges in light of the pricing data.
-  
-  5. A polite closing thanking the billing department and leaving space for the patient’s signature.
-  
-  Keep the tone respectful, factual, and concise. Avoid general medical explanations or assumptions not included in the data.
-  `;
+You are a professional consumer-advocacy assistant.  
+Using ONLY the data in the JSON below, write a complete billing clarification letter.  
+Do NOT invent any facts.
+
+Charges (JSON):
+${chargeListJSON}
+
+The letter must follow this exact structure:
+
+1. Header block  
+   Use placeholders, each on its own line:  
+   [Your Name]  
+   [Your Address]  
+   [City, State, Zip Code]  
+   [Your Email Address]  
+   [Your Phone Number]  
+   [Date]  
+
+   Then leave space and include:  
+   [Billing Department Name]  
+   [Billing Department Address]  
+   [City, State, Zip Code]  
+
+2. Greeting and purpose  
+   Include a brief greeting and a sentence stating that the patient is requesting clarification regarding several items on their medical bill.
+
+3. Intro paragraph  
+   Explain that the patient reviewed their bill and compared the charges to publicly available hospital pricing information.
+
+4. Charge details section (must use bullet points)  
+   The details must be formatted as bullet points exactly like the examples below.  
+   Do not convert these into paragraphs or inline sentences.
+
+   For price-flagged charges (percentAbove > 0), list each charge with:  
+   - CPT Code:  
+   - Billed Amount:  
+   - Median Negotiated Price:  
+   - Percent Above Median Negotiated Price:  
+   - Dispute Note: (Do not include this line if the dispute note field is blank or empty)  
+
+   For dispute-only charges (percentAbove = 0 AND disputeNote exists), list each charge with:  
+   - CPT Code:  
+   - Description:  
+   - Billed Amount:  
+   - Dispute Note:  
+
+   Ensure discute notes are full sentences with spelling and grammar corrected automatically.
+
+5. Closing paragraph  
+   Include a short, polite paragraph asking for clarification or reconsideration of the listed charges.
+
+6. Signature block  
+   Repeat these placeholders, each on its own line:  
+   [Your Name]  
+   [Your Address]  
+   [Your Contact Info]  
+   [Date]  
+   [Signature Line]
+
+Tone must remain respectful, concise, factual, and professional.  
+Do NOT include headings, section titles, or numbered lists in the final letter — only the bullet lists for the charge details.
+`;
   
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",

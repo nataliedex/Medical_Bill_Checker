@@ -55,30 +55,6 @@ async function getVisitSummary(codes) {
   }
 }
 
-// --- Table sorting ---
-let sortDirections = {};
-function sortTable(n, tableId = "resultsTable") {
-  const table = document.getElementById(tableId);
-  const tbody = table.tBodies[0];
-  const rows = Array.from(tbody.rows);
-
-  sortDirections[n] = !sortDirections[n];
-  const direction = sortDirections[n] ? 1 : -1;
-
-  rows.sort((a, b) => {
-    const valA = a.cells[n].innerText.replace(/[^0-9.-]+/g, "");
-    const valB = b.cells[n].innerText.replace(/[^0-9.-]+/g, "");
-    const numA = parseFloat(valA);
-    const numB = parseFloat(valB);
-    if (!isNaN(numA) && !isNaN(numB)) return (numA - numB) * direction;
-    return a.cells[n].innerText.localeCompare(b.cells[n].innerText) * direction;
-  });
-
-  rows.forEach(row => tbody.appendChild(row));
-  table.querySelectorAll("th i").forEach(i => i.className = "bi bi-arrow-down-up");
-  table.querySelectorAll("th i")[n].className = sortDirections[n] ? "bi bi-arrow-down" : "bi bi-arrow-up";
-}
-
 // --- Pivot Table Rendering ---
 async function renderPivotTable(data) {
   const pivotBody = document.querySelector("#pivot-table tbody");
@@ -205,28 +181,28 @@ async function renderComparePivotTable(data) {
       }
 
       const tr = document.createElement("tr");
+      // Added 11/20
+      tr.classList.add("pivot-data-row");
+      // End of Add 11/20
       if (suspicious) {
         tr.classList.add("suspicious-charge");
         tr.title = "Suspicious: billed > 10% above negotiated";
       }
 
       tr.innerHTML = `
-  <td class="dispute-cell" style="vertical-align:top;">
-    <input type="checkbox" class="dispute-checkbox" aria-label="Dispute this charge">
-  </td>
-  <td>${cpt_code}</td>
-  <td>${descriptions[cpt_code] || ""}</td>
-  <td>${setting}</td>
-  <td>$${medianStandard != null ? medianStandard.toFixed(0) : '0'}</td>
-  <td>$${medianNegotiated != null ? medianNegotiated.toFixed(0) : '0'}</td>
-  <td>${billedCharges != null ? `$${billedCharges.toFixed(0)}` : '<span class="text-muted">N/A</span>'}</td>
-`;
+        <td class="dispute-cell" style="vertical-align:top;">
+          <input type="checkbox" class="dispute-checkbox" aria-label="Dispute this charge">
+        </td>
+        <td>${cpt_code}</td>
+        <td>${descriptions[cpt_code] || ""}</td>
+        <td>${setting}</td>
+        <td>$${medianStandard != null ? medianStandard.toFixed(0) : '0'}</td>
+        <td>$${medianNegotiated != null ? medianNegotiated.toFixed(0) : '0'}</td>
+        <td>${billedCharges != null ? `$${billedCharges.toFixed(0)}` : '<span class="text-muted">N/A</span>'}</td>
+      `;
 pivotBody.appendChild(tr);
 
-
-   
-
-    // Add dispute note row on checkbox toggle
+// Add dispute note row on checkbox toggle
 const checkbox = tr.querySelector(".dispute-checkbox");
 if (checkbox) {
   checkbox.addEventListener("change", (e) => {
@@ -236,7 +212,6 @@ if (checkbox) {
     if (existingNoteRow && existingNoteRow.classList.contains("dispute-note-row")) {
       existingNoteRow.remove();
     }
-
     // If checked, insert the dispute textarea row
     if (e.target.checked) {
       const noteRow = document.createElement("tr");
@@ -257,9 +232,6 @@ if (checkbox) {
     }
   });
 }
-
-
-
       totalStandard += medianStandard || 0;
       totalNegotiated += medianNegotiated || 0;
       totalBilled += billedCharges || 0;
@@ -290,7 +262,6 @@ if (checkbox) {
       `;
       pivotBody.appendChild(flaggedTr);
     }
-
     return { displayedCodes: Array.from(displayedCodes), flaggedCharges };
   }
 
@@ -309,22 +280,25 @@ if (checkbox) {
 // helper function to gather dispute notes
 function gatherDisputeNotes() {
   const rows = document.querySelectorAll(".pivot-data-row");
-
   const notes = {};
 
   rows.forEach(row => {
     const checkbox = row.querySelector(".dispute-checkbox");
-    if (!checkbox || !checkbox.checked) return;
+    if (!checkbox) return;
 
     const cpt = row.children[1].textContent.trim();
 
-    const noteRow = row.nextElementSibling;
-    if (noteRow && noteRow.classList.contains("dispute-note-row")) {
-      const text = noteRow.querySelector(".dispute-note-text")?.value.trim() || "";
-      notes[cpt] = text;
+    if (checkbox.checked) {
+      const noteRow = row.nextElementSibling;
+
+      if (noteRow && noteRow.classList.contains("dispute-note-row")) {
+        const textarea = noteRow.querySelector(".dispute-note-text");
+
+        const text = textarea?.value.trim() || "";
+        notes[cpt] = text;
+      }
     }
   });
-
   return notes;
 }
 
@@ -351,7 +325,6 @@ function initRawTableToggle() {
         // 3 = Negotiated
         // 4 = Payer
         // 5 = Plan Name   <--- THIS is what we filter on
-
         const planName = row.cells[5].innerText.trim().toLowerCase();
 
         if (!toggle.checked) {
@@ -398,8 +371,6 @@ function exportTableToCSV(table, filename = "raw_data.csv") {
   document.body.removeChild(link);
 }
 
-
-
 // --- Initialize everything ---
 document.addEventListener("DOMContentLoaded", async () => {
   // --- Pivot table rendering ---
@@ -415,7 +386,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   // --- Raw table toggle ---
   initRawTableToggle();
 
-  // --- Export buttons for each table ---
   // --- Export buttons ---
   document.querySelectorAll(".export-btn").forEach(button => {
     // remove any previous listeners just in case
@@ -430,7 +400,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // --- Generate Visit Summary ---
-
   const visitSummaryBtn = document.getElementById("generateVisitSummaryBtn");
 
   if (visitSummaryBtn) {
@@ -478,72 +447,71 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
-
-  // --- Generate Letter ---
+  
 const generateLetterBtn = document.getElementById("generateLetterBtn");
-const letterOutput = document.getElementById("letterOutput");
 const generatedLetterPre = document.getElementById("generated-letter");
 
-if (generateLetterBtn && letterOutput && generatedLetterPre) {
+if (generateLetterBtn && generatedLetterPre) {
   generateLetterBtn.addEventListener("click", async () => {
-    letterOutput.textContent = "Generating letter...";
-  
+    generatedLetterPre.textContent = "Generating letter...";
+
     try {
-      const disputeNotes = gatherDisputeNotes(); // { "99213": "note text", ... }
-  
-      // 1️⃣ Start with flagged charges and attach notes
+      const disputeNotes = gatherDisputeNotes(); 
+
       const fullChargeList = window.flaggedCharges.map(fc => ({
         ...fc,
         disputeNote: disputeNotes[fc.cpt_code] || ""
       }));
-  
-      // 2️⃣ Include any non-flagged rows that have a dispute note
+
       document.querySelectorAll(".pivot-data-row").forEach(row => {
         const cpt = row.children[1].textContent.trim();
-  
-        // Skip if already in fullChargeList or no note exists
+
         if (fullChargeList.find(item => item.cpt_code === cpt) || !disputeNotes[cpt]) return;
-  
+
         fullChargeList.push({
           cpt_code: cpt,
           description: row.children[2].textContent.trim(),
           billed: parseFloat(row.children[6].textContent.replace(/\$|,/g, '')) || 0,
           negotiated: parseFloat(row.children[5].textContent.replace(/\$|,/g, '')) || 0,
-          percentAbove: 0, // non-flagged row
+          percentAbove: 0,
           disputeNote: disputeNotes[cpt]
         });
       });
-  
-      // 3️⃣ Send to backend
+
       const res = await fetch("/api/generate-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ flaggedCharges: fullChargeList }),
       });
-  
+
       if (!res.ok) {
         const err = await res.json();
-        letterOutput.textContent = `Error: ${err.error || res.statusText}`;
+        generatedLetterPre.textContent = `Error: ${err.error || res.statusText}`;
         return;
       }
-  
+
       const data = await res.json();
-      letterOutput.textContent = data.letter;
       generatedLetterPre.textContent = data.letter;
-  
+
       // Hide Generate Letter button & show export button
       generateLetterBtn.style.display = "none";
       document.querySelectorAll(".export-letter-btn").forEach(btn => btn.style.display = "inline-block");
-  
+
     } catch (err) {
       console.error("Error generating letter:", err);
-      letterOutput.textContent = "Error generating letter. See console for details.";
+      generatedLetterPre.textContent = "Error generating letter. See console for details.";
     }
   });
 
-  
+  // --- Export functionality ---
+  document.querySelectorAll(".export-letter-btn").forEach(button => {
+    button.addEventListener("click", () => {
+      const blob = new Blob([generatedLetterPre.textContent], { type: "text/plain;charset=utf-8" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "letter.txt";
+      link.click();
+    });
+  });
 }
-  
- 
-
 });
